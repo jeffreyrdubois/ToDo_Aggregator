@@ -71,7 +71,7 @@ destination configured (see [Creating & completing tasks](#creating--completing-
 ### Option A — HACS (custom repository)
 
 1. In Home Assistant, go to **HACS → ⋮ (top right) → Custom repositories**.
-2. Add `https://github.com/jeffreyrdubois/hassio` with category **Integration**.
+2. Add `https://github.com/jeffreyrdubois/ToDo_Aggregator` with category **Integration**.
 3. Find **Unified To-Do Aggregator** in HACS and click **Download**.
 4. **Restart Home Assistant.**
 

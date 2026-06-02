@@ -252,17 +252,27 @@ lets you check them off — it just won't offer "add item".
 ## Recurring tasks
 
 Create tasks automatically on a schedule — no automations or YAML required.
-Each recurring rule is a **subentry** of the integration:
+Each recurring rule is a **subentry** of the integration. You can create one
+two ways:
 
-1. **Settings → Devices & Services → Unified To-Do Aggregator → ＋ Add recurring task.**
-2. Choose the **service**, a **title** (and optional description / destination),
-   then how it repeats: **Daily / Weekly / Monthly**, the **time of day**, and
-   for weekly/monthly the **weekdays** / **day of month**.
-3. Optionally set **Due in N days** (the created task's due date = run date +
-   N). Leave **Destination** blank to use that service's configured default.
+**From the card (quickest):** in the **＋ New task** form, set **Repeat** to
+Daily / Weekly / Monthly, pick the time (and weekdays / day-of-month), and the
+"Create" button becomes **Schedule**.
 
-Rules show up as rows under the integration — edit, disable (uncheck
-**Enabled**), or delete them there any time; changes take effect immediately.
+**From Settings:** **Devices & Services → Unified To-Do Aggregator → ＋ Add
+recurring task** — same fields, plus the **Due in N days** offset and an
+explicit **Enabled** toggle.
+
+Either way the rule captures the **service**, **title** (+ optional description /
+destination), how it **repeats**, and the **time of day**. Leave **Destination**
+blank to use that service's configured default.
+
+The **card manages the whole lifecycle**: under the task list it shows a
+**🔁 Recurring** section listing every rule with its schedule. From there you
+can **enable/disable** (the checkbox), **✎ Edit** (loads it back into the form —
+the button becomes *Save*), or **🗑 Delete** (click twice to confirm). Rules
+also appear as rows under the integration in Settings if you prefer to manage
+them there; both stay in sync.
 
 Notes:
 - Uses the same create path as the card/service, including per-source

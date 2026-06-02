@@ -63,6 +63,12 @@ PRIORITY_LOW: Final = "low"
 SERVICE_CREATE_TASK: Final = "create_task"
 SERVICE_COMPLETE_TASK: Final = "complete_task"
 SERVICE_LIST_DESTINATIONS: Final = "list_destinations"
+SERVICE_ADD_RECURRING: Final = "add_recurring_task"
+SERVICE_LIST_RECURRING: Final = "list_recurring_tasks"
+SERVICE_UPDATE_RECURRING: Final = "update_recurring_task"
+SERVICE_DELETE_RECURRING: Final = "delete_recurring_task"
+
+ATTR_RULE_ID: Final = "rule_id"
 
 ATTR_SOURCE: Final = "source"
 ATTR_SUMMARY: Final = "summary"

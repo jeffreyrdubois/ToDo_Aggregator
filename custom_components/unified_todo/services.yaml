@@ -81,6 +81,239 @@ complete_task:
       selector:
         text:
 
+add_recurring_task:
+  name: Add recurring task
+  description: >-
+    Create a recurring task rule (stored as a subentry of the integration). It
+    then fires automatically on its schedule. Mainly used by the Unified To-Do
+    card's "Repeat" option; you can also edit/disable/delete rules under the
+    integration in Settings.
+  fields:
+    source:
+      name: Service
+      description: Which service to create the task in.
+      required: true
+      example: clickup
+      selector:
+        select:
+          options:
+            - label: GitHub Issues
+              value: github
+            - label: ClickUp
+              value: clickup
+            - label: Google Tasks
+              value: google_tasks
+    summary:
+      name: Title
+      description: The task title.
+      required: true
+      example: Take out the trash
+      selector:
+        text:
+    description:
+      name: Description
+      required: false
+      selector:
+        text:
+          multiline: true
+    destination:
+      name: Destination
+      description: GitHub owner/repo, ClickUp list id, or Google list id. Blank uses the default.
+      required: false
+      selector:
+        text:
+    frequency:
+      name: Repeat
+      description: How often the task is created.
+      required: false
+      default: weekly
+      selector:
+        select:
+          options:
+            - label: Daily
+              value: daily
+            - label: Weekly
+              value: weekly
+            - label: Monthly
+              value: monthly
+    time:
+      name: Time of day
+      description: When to create it (HH:MM).
+      required: false
+      default: "09:00"
+      selector:
+        time:
+    weekdays:
+      name: Weekdays
+      description: Which days (weekly schedules only).
+      required: false
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Monday
+              value: mon
+            - label: Tuesday
+              value: tue
+            - label: Wednesday
+              value: wed
+            - label: Thursday
+              value: thu
+            - label: Friday
+              value: fri
+            - label: Saturday
+              value: sat
+            - label: Sunday
+              value: sun
+    day_of_month:
+      name: Day of month
+      description: Day of month (monthly schedules only; clamps to the last day).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 31
+          mode: box
+    due_offset_days:
+      name: Due in N days
+      description: Due date = creation date + this many days (0 = same day).
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    enabled:
+      name: Enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+
+list_recurring_tasks:
+  name: List recurring tasks
+  description: >-
+    Return the configured recurring task rules (used by the Unified To-Do card).
+    Response service.
+
+update_recurring_task:
+  name: Update recurring task
+  description: >-
+    Replace a recurring rule's settings. Send the full rule (all fields) — it
+    overwrites the stored rule.
+  fields:
+    rule_id:
+      name: Rule ID
+      description: The recurring rule's id (the `id` from list_recurring_tasks).
+      required: true
+      selector:
+        text:
+    source:
+      name: Service
+      required: true
+      selector:
+        select:
+          options:
+            - label: GitHub Issues
+              value: github
+            - label: ClickUp
+              value: clickup
+            - label: Google Tasks
+              value: google_tasks
+    summary:
+      name: Title
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      required: false
+      selector:
+        text:
+          multiline: true
+    destination:
+      name: Destination
+      required: false
+      selector:
+        text:
+    frequency:
+      name: Repeat
+      required: false
+      default: weekly
+      selector:
+        select:
+          options:
+            - label: Daily
+              value: daily
+            - label: Weekly
+              value: weekly
+            - label: Monthly
+              value: monthly
+    time:
+      name: Time of day
+      required: false
+      default: "09:00"
+      selector:
+        time:
+    weekdays:
+      name: Weekdays
+      required: false
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Monday
+              value: mon
+            - label: Tuesday
+              value: tue
+            - label: Wednesday
+              value: wed
+            - label: Thursday
+              value: thu
+            - label: Friday
+              value: fri
+            - label: Saturday
+              value: sat
+            - label: Sunday
+              value: sun
+    day_of_month:
+      name: Day of month
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 31
+          mode: box
+    due_offset_days:
+      name: Due in N days
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    enabled:
+      name: Enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+
+delete_recurring_task:
+  name: Delete recurring task
+  description: Delete a recurring rule.
+  fields:
+    rule_id:
+      name: Rule ID
+      description: The recurring rule's id (the `id` from list_recurring_tasks).
+      required: true
+      selector:
+        text:
+
 list_destinations:
   name: List destinations
   description: >-

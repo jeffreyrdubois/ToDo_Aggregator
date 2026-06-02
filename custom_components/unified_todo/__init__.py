@@ -40,6 +40,7 @@ from .const import (
     SERVICE_LIST_DESTINATIONS,
 )
 from .coordinator import UnifiedTodoCoordinator
+from .recurring import RecurringScheduler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,8 +172,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_services(hass)
     await _async_register_card(hass)
 
-    # Reload when the user edits options so the new scan interval / sources
-    # take effect immediately.
+    # Schedule any recurring-task rules (stored as subentries).
+    scheduler = RecurringScheduler(hass, entry, coordinator)
+    scheduler.async_setup()
+    entry.async_on_unload(scheduler.async_unload)
+
+    # Reload when the user edits options or adds/edits a recurring-task
+    # subentry, so the new scan interval / sources / schedules take effect.
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 

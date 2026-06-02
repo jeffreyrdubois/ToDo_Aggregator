@@ -249,6 +249,28 @@ the integration's **Configure** dialog:
 Until a service has its destination set, its To-do list still shows tasks and
 lets you check them off — it just won't offer "add item".
 
+## Recurring tasks
+
+Create tasks automatically on a schedule — no automations or YAML required.
+Each recurring rule is a **subentry** of the integration:
+
+1. **Settings → Devices & Services → Unified To-Do Aggregator → ＋ Add recurring task.**
+2. Choose the **service**, a **title** (and optional description / destination),
+   then how it repeats: **Daily / Weekly / Monthly**, the **time of day**, and
+   for weekly/monthly the **weekdays** / **day of month**.
+3. Optionally set **Due in N days** (the created task's due date = run date +
+   N). Leave **Destination** blank to use that service's configured default.
+
+Rules show up as rows under the integration — edit, disable (uncheck
+**Enabled**), or delete them there any time; changes take effect immediately.
+
+Notes:
+- Uses the same create path as the card/service, including per-source
+  destinations. GitHub issues ignore the due date.
+- A rule fires once at its scheduled time. If Home Assistant is offline at that
+  moment, that occurrence is skipped (it does not back-fill).
+- Monthly rules clamp to the last day on short months (e.g. "31st" → Feb 28/29).
+
 ## Data Schema
 
 Every task is normalized to this shape (the `tasks` attribute is a list of
@@ -286,6 +308,7 @@ Tasks has no priority.
 - [x] Create tasks and mark them complete (To-do list entities + services)
 - [x] Combined To-do list entity that completes across every source
 - [x] Custom Lovelace card with complete + create (provider & destination picker)
+- [x] Recurring tasks managed in-integration (daily/weekly/monthly schedules)
 - [ ] Optional in-HA Google OAuth flow (no manual refresh-token step)
 - [ ] Morning digest / due-date reminder automations (blueprint)
 - [ ] Count badges and color-coded priority indicators

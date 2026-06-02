@@ -93,6 +93,10 @@
         "due_date": {
           "name": "Due date",
           "description": "Optional due date. Ignored by GitHub (issues have no due date)."
+        },
+        "destination": {
+          "name": "Destination",
+          "description": "Where to create it (GitHub owner/repo, ClickUp list id, or Google list id). Blank uses the configured default."
         }
       }
     },
@@ -107,6 +111,16 @@
         "task_id": {
           "name": "Task ID",
           "description": "The task's source id (GitHub issue number, ClickUp task id, or Google task id)."
+        }
+      }
+    },
+    "list_destinations": {
+      "name": "List destinations",
+      "description": "Return the repos / lists a task could be created in for a service, plus the default.",
+      "fields": {
+        "source": {
+          "name": "Service",
+          "description": "Which service to list destinations for."
         }
       }
     }

@@ -312,6 +312,49 @@ async def async_github_close_issue(
         raise SourceConnectionError(f"Could not reach GitHub: {err}") from err
 
 
+async def async_github_list_repos(
+    session: ClientSession, token: str
+) -> list[dict[str, str]]:
+    """List repos the user can create issues in (push access), newest activity first.
+
+    Returns ``[{"id": "owner/repo", "name": "owner/repo"}, ...]``.
+    """
+    params = {
+        "affiliation": "owner,collaborator,organization_member",
+        "sort": "pushed",
+        "direction": "desc",
+        "per_page": "100",
+    }
+    try:
+        async with session.get(
+            f"{GITHUB_API}/user/repos",
+            headers=_github_write_headers(token),
+            params=params,
+            timeout=REQUEST_TIMEOUT,
+        ) as resp:
+            await _raise_for_auth(resp)
+            resp.raise_for_status()
+            repos = await resp.json()
+    except ClientResponseError as err:
+        raise SourceConnectionError(f"GitHub returned HTTP {err.status}") from err
+    except (ClientError, TimeoutError) as err:
+        raise SourceConnectionError(f"Could not reach GitHub: {err}") from err
+
+    out: list[dict[str, str]] = []
+    for repo in repos:
+        if repo.get("archived"):
+            continue
+        # Issues must be enabled and the user must be able to push.
+        if not (repo.get("permissions") or {}).get("push"):
+            continue
+        if not repo.get("has_issues", True):
+            continue
+        name = repo.get("full_name")
+        if name:
+            out.append({"id": name, "name": name})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # ClickUp
 # ---------------------------------------------------------------------------
@@ -539,6 +582,72 @@ async def async_clickup_complete_task(
         raise SourceConnectionError(f"Could not reach ClickUp: {err}") from err
 
 
+async def _clickup_get(
+    session: ClientSession, token: str, path: str, params: dict | None = None
+) -> dict[str, Any]:
+    try:
+        async with session.get(
+            f"{CLICKUP_API}{path}",
+            headers={"Authorization": token},
+            params=params or {},
+            timeout=REQUEST_TIMEOUT,
+        ) as resp:
+            await _raise_for_auth(resp)
+            resp.raise_for_status()
+            return await resp.json()
+    except ClientResponseError as err:
+        raise SourceConnectionError(f"ClickUp returned HTTP {err.status}") from err
+    except (ClientError, TimeoutError) as err:
+        raise SourceConnectionError(f"Could not reach ClickUp: {err}") from err
+
+
+async def async_clickup_list_lists(
+    session: ClientSession, token: str, team_id: str
+) -> list[dict[str, str]]:
+    """List every (non-archived) ClickUp list a task can be created in.
+
+    Walks spaces → folders → lists plus folderless lists, returning
+    ``[{"id": list_id, "name": "Space / Folder / List"}, ...]``.
+    """
+    out: list[dict[str, str]] = []
+    spaces = (await _clickup_get(
+        session, token, f"/team/{team_id}/space", {"archived": "false"}
+    )).get("spaces") or []
+    for space in spaces:
+        space_id = space.get("id")
+        space_name = space.get("name") or "Space"
+        if not space_id:
+            continue
+        # Lists inside folders.
+        folders = (await _clickup_get(
+            session, token, f"/space/{space_id}/folder", {"archived": "false"}
+        )).get("folders") or []
+        for folder in folders:
+            folder_name = folder.get("name") or "Folder"
+            for lst in folder.get("lists") or []:
+                if lst.get("archived"):
+                    continue
+                lid = lst.get("id")
+                if lid:
+                    out.append(
+                        {
+                            "id": str(lid),
+                            "name": f"{space_name} / {folder_name} / {lst.get('name')}",
+                        }
+                    )
+        # Folderless lists.
+        lists = (await _clickup_get(
+            session, token, f"/space/{space_id}/list", {"archived": "false"}
+        )).get("lists") or []
+        for lst in lists:
+            lid = lst.get("id")
+            if lid:
+                out.append(
+                    {"id": str(lid), "name": f"{space_name} / {lst.get('name')}"}
+                )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Google Tasks
 # ---------------------------------------------------------------------------
@@ -732,6 +841,40 @@ async def async_google_complete_task(
         raise SourceConnectionError(f"Google Tasks HTTP {err.status}") from err
     except (ClientError, TimeoutError) as err:
         raise SourceConnectionError(f"Could not reach Google Tasks: {err}") from err
+
+
+async def async_google_list_tasklists(
+    session: ClientSession,
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+) -> list[dict[str, str]]:
+    """List the user's Google task lists as ``[{"id", "name"}, ...]``."""
+    access_token = await async_google_access_token(
+        session, client_id, client_secret, refresh_token
+    )
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        async with session.get(
+            f"{GOOGLE_TASKS_API}/users/@me/lists",
+            headers=headers,
+            params={"maxResults": "100"},
+            timeout=REQUEST_TIMEOUT,
+        ) as resp:
+            await _raise_for_auth(resp)
+            resp.raise_for_status()
+            data = await resp.json()
+    except ClientResponseError as err:
+        raise SourceConnectionError(f"Google Tasks HTTP {err.status}") from err
+    except (ClientError, TimeoutError) as err:
+        raise SourceConnectionError(f"Could not reach Google Tasks: {err}") from err
+
+    out: list[dict[str, str]] = []
+    for lst in data.get("items", []):
+        lid = lst.get("id")
+        if lid:
+            out.append({"id": lid, "name": lst.get("title") or lid})
+    return out
 
 
 async def async_validate_google(

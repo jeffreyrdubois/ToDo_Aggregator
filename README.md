@@ -58,13 +58,19 @@ full list as the `tasks` attribute of `sensor.unified_todos`.
 | `sensor.github_issues` *(if configured)* | open GitHub issues assigned to you | `tasks` |
 | `sensor.clickup` *(if configured)* | open ClickUp tasks | `tasks` |
 | `sensor.google_tasks` *(if configured)* | open Google Tasks | `tasks` |
+| `todo.unified_todos` | **every** source's open tasks in one list | check off → completed in the right service automatically |
 | `todo.github_issues` *(if configured)* | open GitHub issues, as a To-do list | add item → new issue; check off → close issue |
 | `todo.clickup` *(if configured)* | open ClickUp tasks, as a To-do list | add item → new task; check off → done status |
 | `todo.google_tasks` *(if configured)* | open Google Tasks, as a To-do list | add item → new task; check off → completed |
 
 The `todo.*` entities work with Home Assistant's built-in **To-do list** card
-and the mobile app. "Add item" is only offered once that source has a
-destination configured (see [Creating & completing tasks](#creating--completing-tasks)).
+and the mobile app. `todo.unified_todos` is the **combined** list — tick
+anything off and the integration routes the completion to the correct service,
+so you never have to think about which list a task came from (it doesn't offer
+"add item", since the destination would be ambiguous — use a per-source list,
+the [custom card](#unified-to-do-card), or the `create_task` service). Per-source
+"Add item" is only offered once that source has a destination configured (see
+[Creating & completing tasks](#creating--completing-tasks)).
 
 ## Installation
 
@@ -172,6 +178,31 @@ content: |
 To group by source, iterate over each per-source sensor's `tasks` attribute
 instead, or filter the unified list with `selectattr('source', 'eq', 'github')`.
 
+## Unified To-Do Card
+
+The integration ships a **custom Lovelace card** that's registered
+automatically — no resource setup needed. After updating and restarting, add a
+card and search for **"Unified To-Do Card"**, or in YAML:
+
+```yaml
+type: custom:unified-todo-card
+entity: sensor.unified_todos   # optional (default)
+title: My To-Dos               # optional
+```
+
+It gives you, in one card:
+
+- The full task list with **one-click complete** (checkbox → completes in the
+  right service).
+- A **＋ New task** form: pick the **service**, then pick a **destination** from
+  a live list of your repos / lists (leave it on **Default** to use the
+  configured default), add a title (and optional description / due date), and
+  **Create**.
+
+> If the card type isn't found right after updating, hard-refresh your browser
+> (Ctrl/Cmd-Shift-R) — the frontend caches modules. It's served at
+> `/unified_todo/unified-todo-card.js`.
+
 ## Creating & completing tasks
 
 Two ways to write back:
@@ -187,8 +218,9 @@ service simply by choosing which list you add to.
 
 | Service | What it does |
 | --- | --- |
-| `unified_todo.create_task` | Create a task. Fields: `source`, `summary`, optional `description`, optional `due_date`. |
+| `unified_todo.create_task` | Create a task. Fields: `source`, `summary`, optional `description`, `due_date`, `destination`. |
 | `unified_todo.complete_task` | Complete a task. Fields: `source`, `task_id` (the task's `source_id`). |
+| `unified_todo.list_destinations` | Returns the repos / lists you could create in for a `source`, plus the default. Response service (used by the card). |
 
 ```yaml
 action: unified_todo.create_task
@@ -197,7 +229,11 @@ data:
   summary: Order more navy thread
   description: 5 cones
   due_date: "2026-06-15"
+  destination: "901234567"   # optional ClickUp list id; omit to use the default
 ```
+
+`destination` is a GitHub `owner/repo`, a ClickUp list id, or a Google task
+list id. Omit it to fall back to the configured default for that service.
 
 ### Where new tasks go
 
@@ -248,7 +284,8 @@ Tasks has no priority.
 - [x] UI config flow with credential validation; editable options
 - [x] Configurable refresh interval; resilient to a single source failing
 - [x] Create tasks and mark them complete (To-do list entities + services)
-- [ ] Custom Lovelace card (instead of a Markdown card) for nicer grouping/filtering
+- [x] Combined To-do list entity that completes across every source
+- [x] Custom Lovelace card with complete + create (provider & destination picker)
 - [ ] Optional in-HA Google OAuth flow (no manual refresh-token step)
 - [ ] Morning digest / due-date reminder automations (blueprint)
 - [ ] Count badges and color-coded priority indicators

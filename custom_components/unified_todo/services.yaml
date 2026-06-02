@@ -40,6 +40,16 @@ create_task:
       required: false
       selector:
         date:
+    destination:
+      name: Destination
+      description: >-
+        Where to create it — a GitHub repo (owner/repo), a ClickUp list id, or a
+        Google task list id. Leave blank to use the configured default for the
+        service.
+      required: false
+      example: jeffreyrdubois/sr2-code
+      selector:
+        text:
 
 complete_task:
   name: Complete task
@@ -70,3 +80,25 @@ complete_task:
       example: "71"
       selector:
         text:
+
+list_destinations:
+  name: List destinations
+  description: >-
+    Return the places a new task could be created in a service (GitHub repos,
+    ClickUp lists, or Google task lists), plus the configured default. Mainly
+    used by the Unified To-Do card's destination picker.
+  fields:
+    source:
+      name: Service
+      description: Which service to list destinations for.
+      required: true
+      example: clickup
+      selector:
+        select:
+          options:
+            - label: GitHub Issues
+              value: github
+            - label: ClickUp
+              value: clickup
+            - label: Google Tasks
+              value: google_tasks

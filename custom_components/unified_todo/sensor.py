@@ -23,19 +23,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
-    SOURCE_CLICKUP,
-    SOURCE_GITHUB,
-    SOURCE_GOOGLE,
     SOURCE_LABELS,
+    SOURCE_OBJECT_IDS,
 )
 from .coordinator import UnifiedTodoCoordinator
-
-# Preferred entity_id object ids per source (kept in sync with the README).
-_SOURCE_OBJECT_IDS = {
-    SOURCE_GITHUB: "github_issues",
-    SOURCE_CLICKUP: "clickup",
-    SOURCE_GOOGLE: "google_tasks",
-}
 
 # The task list can be large; keep it out of the recorder database.
 PARALLEL_UPDATES = 0
@@ -129,7 +120,7 @@ class UnifiedTodoSourceSensor(_BaseSensor):
         self._attr_name = SOURCE_LABELS.get(source, source)
         self.entity_id = generate_entity_id(
             ENTITY_ID_FORMAT,
-            _SOURCE_OBJECT_IDS.get(source, source),
+            SOURCE_OBJECT_IDS.get(source, source),
             hass=coordinator.hass,
         )
 

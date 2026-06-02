@@ -3,16 +3,19 @@
     "step": {
       "user": {
         "title": "Unified To-Do Aggregator",
-        "description": "Add credentials for the sources you want to aggregate. Leave a source blank to skip it — at least one is required. See the documentation for how to obtain each token.",
+        "description": "Add credentials for the sources you want to aggregate. Leave a source blank to skip it — at least one is required. To create new tasks from Home Assistant, also set that source's destination (GitHub repo / ClickUp list). See the documentation for how to obtain each token.",
         "data": {
           "github_token": "GitHub personal access token",
           "github_repo_filter": "GitHub repo filter (optional regex, e.g. sr2)",
+          "github_default_repo": "GitHub repo for new issues (owner/repo, optional)",
           "clickup_token": "ClickUp API token",
           "clickup_team_id": "ClickUp team / workspace ID",
           "clickup_assigned_only": "Only my assigned ClickUp tasks",
+          "clickup_default_list_id": "ClickUp list ID for new tasks (optional)",
           "google_client_id": "Google OAuth client ID",
           "google_client_secret": "Google OAuth client secret",
           "google_refresh_token": "Google OAuth refresh token",
+          "google_default_list": "Google task list ID for new tasks (optional, default @default)",
           "scan_interval_minutes": "Refresh interval (minutes)"
         }
       }
@@ -21,6 +24,7 @@
       "no_sources": "Configure at least one source.",
       "cannot_connect": "Could not connect to the source. Check your network and try again.",
       "github_auth": "GitHub rejected the token. Check it has the repo scope.",
+      "github_repo_invalid": "The GitHub repo must be in owner/repo form, e.g. jeffreyrdubois/sr2-code.",
       "clickup_auth": "ClickUp rejected the token or team ID.",
       "clickup_team_required": "A ClickUp team / workspace ID is required when a ClickUp token is set.",
       "google_incomplete": "Google Tasks needs client ID, client secret and refresh token.",
@@ -34,16 +38,19 @@
     "step": {
       "init": {
         "title": "Unified To-Do Aggregator settings",
-        "description": "Update credentials, filters or the refresh interval. Tokens left blank will be removed.",
+        "description": "Update credentials, filters, task destinations or the refresh interval. Tokens left blank will be removed.",
         "data": {
           "github_token": "GitHub personal access token",
           "github_repo_filter": "GitHub repo filter (optional regex, e.g. sr2)",
+          "github_default_repo": "GitHub repo for new issues (owner/repo, optional)",
           "clickup_token": "ClickUp API token",
           "clickup_team_id": "ClickUp team / workspace ID",
           "clickup_assigned_only": "Only my assigned ClickUp tasks",
+          "clickup_default_list_id": "ClickUp list ID for new tasks (optional)",
           "google_client_id": "Google OAuth client ID",
           "google_client_secret": "Google OAuth client secret",
           "google_refresh_token": "Google OAuth refresh token",
+          "google_default_list": "Google task list ID for new tasks (optional, default @default)",
           "scan_interval_minutes": "Refresh interval (minutes)"
         }
       }
@@ -52,6 +59,7 @@
       "no_sources": "Configure at least one source.",
       "cannot_connect": "Could not connect to the source. Check your network and try again.",
       "github_auth": "GitHub rejected the token. Check it has the repo scope.",
+      "github_repo_invalid": "The GitHub repo must be in owner/repo form, e.g. jeffreyrdubois/sr2-code.",
       "clickup_auth": "ClickUp rejected the token or team ID.",
       "clickup_team_required": "A ClickUp team / workspace ID is required when a ClickUp token is set.",
       "google_incomplete": "Google Tasks needs client ID, client secret and refresh token.",
@@ -62,6 +70,44 @@
     "sensor": {
       "unified_todos": {
         "name": "Unified To-Dos"
+      }
+    }
+  },
+  "services": {
+    "create_task": {
+      "name": "Create task",
+      "description": "Create a new task in one of the connected services.",
+      "fields": {
+        "source": {
+          "name": "Service",
+          "description": "Which service to create the task in."
+        },
+        "summary": {
+          "name": "Title",
+          "description": "The task title (GitHub issue title / task name)."
+        },
+        "description": {
+          "name": "Description",
+          "description": "Optional longer description / notes / issue body."
+        },
+        "due_date": {
+          "name": "Due date",
+          "description": "Optional due date. Ignored by GitHub (issues have no due date)."
+        }
+      }
+    },
+    "complete_task": {
+      "name": "Complete task",
+      "description": "Mark a task complete in its source (closes the issue for GitHub).",
+      "fields": {
+        "source": {
+          "name": "Service",
+          "description": "Which service the task belongs to."
+        },
+        "task_id": {
+          "name": "Task ID",
+          "description": "The task's source id (GitHub issue number, ClickUp task id, or Google task id)."
+        }
       }
     }
   }

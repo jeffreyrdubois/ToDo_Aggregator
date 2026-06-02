@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -18,12 +19,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from . import api
 from .const import (
     CONF_CLICKUP_ASSIGNED_ONLY,
+    CONF_CLICKUP_DEFAULT_LIST_ID,
     CONF_CLICKUP_TEAM_ID,
     CONF_CLICKUP_TOKEN,
+    CONF_GITHUB_DEFAULT_REPO,
     CONF_GITHUB_FILTER,
     CONF_GITHUB_TOKEN,
     CONF_GOOGLE_CLIENT_ID,
     CONF_GOOGLE_CLIENT_SECRET,
+    CONF_GOOGLE_DEFAULT_LIST,
     CONF_GOOGLE_REFRESH_TOKEN,
     CONF_SCAN_INTERVAL_MINUTES,
     DEFAULT_SCAN_INTERVAL_MINUTES,
@@ -31,6 +35,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# A GitHub create-target must look like ``owner/repo``.
+_REPO_RE = re.compile(r"^[^/\s]+/[^/\s]+$")
 
 
 def _credentials_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -44,6 +51,9 @@ def _credentials_schema(defaults: dict[str, Any]) -> vol.Schema:
             # GitHub
             vol.Optional(CONF_GITHUB_TOKEN, default=default(CONF_GITHUB_TOKEN)): str,
             vol.Optional(CONF_GITHUB_FILTER, default=default(CONF_GITHUB_FILTER)): str,
+            vol.Optional(
+                CONF_GITHUB_DEFAULT_REPO, default=default(CONF_GITHUB_DEFAULT_REPO)
+            ): str,
             # ClickUp
             vol.Optional(CONF_CLICKUP_TOKEN, default=default(CONF_CLICKUP_TOKEN)): str,
             vol.Optional(
@@ -53,6 +63,10 @@ def _credentials_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_CLICKUP_ASSIGNED_ONLY,
                 default=default(CONF_CLICKUP_ASSIGNED_ONLY, True),
             ): bool,
+            vol.Optional(
+                CONF_CLICKUP_DEFAULT_LIST_ID,
+                default=default(CONF_CLICKUP_DEFAULT_LIST_ID),
+            ): str,
             # Google Tasks
             vol.Optional(
                 CONF_GOOGLE_CLIENT_ID, default=default(CONF_GOOGLE_CLIENT_ID)
@@ -63,6 +77,10 @@ def _credentials_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 CONF_GOOGLE_REFRESH_TOKEN,
                 default=default(CONF_GOOGLE_REFRESH_TOKEN),
+            ): str,
+            vol.Optional(
+                CONF_GOOGLE_DEFAULT_LIST,
+                default=default(CONF_GOOGLE_DEFAULT_LIST),
             ): str,
             # Polling
             vol.Optional(
@@ -104,6 +122,9 @@ async def _validate(hass, user_input: dict[str, Any]) -> dict[str, str]:
             errors[CONF_GITHUB_TOKEN] = "github_auth"
         except api.UnifiedTodoError:
             errors[CONF_GITHUB_TOKEN] = "cannot_connect"
+        repo = user_input.get(CONF_GITHUB_DEFAULT_REPO)
+        if repo and not _REPO_RE.match(repo):
+            errors[CONF_GITHUB_DEFAULT_REPO] = "github_repo_invalid"
 
     if clickup:
         if not user_input.get(CONF_CLICKUP_TEAM_ID):

@@ -2,12 +2,17 @@
 
 A Home Assistant custom integration that aggregates open tasks from **Google
 Tasks**, **GitHub Issues**, and **ClickUp** into a single, unified set of
-sensors you can surface on one dashboard card.
+sensors — and native **To-do list** entities — you can surface on one
+dashboard.
 
-It is **read-only**: data stays in its native system, and this integration
-never modifies or syncs anything back. Each task keeps a link to its source so
-you can jump straight into the full context (GitHub's collaboration, ClickUp's
-workflow state, Google Tasks' simplicity).
+Reading is the core job: data stays in its native system and each task keeps a
+link to its source so you can jump straight into the full context (GitHub's
+collaboration, ClickUp's workflow state, Google Tasks' simplicity). On top of
+that, you can optionally **create new tasks** (choosing which service they land
+in) and **mark tasks complete** right from Home Assistant — see
+[Creating & completing tasks](#creating--completing-tasks). Everything else
+(comments, code references, rich editing) still happens in the source app via
+the task's link.
 
 > Set up entirely from the Home Assistant UI — no YAML editing required.
 
@@ -25,7 +30,7 @@ open tasks in one place while preserving the native strengths of each system.
 
 ## Design Principles
 
-- **Source System Fidelity:** Data lives in its native system; the integration is read-only.
+- **Source System Fidelity:** Data lives in its native system. Writes are limited to creating tasks and marking them complete; nothing is ever destructively synced.
 - **Native Context Preservation:** Links and metadata are preserved so you can drill into the original system.
 - **Minimal Overhead:** A single polling coordinator fetches all sources concurrently; one source failing never blanks out the others.
 - **Simple Setup:** Paste tokens into the UI config flow — nothing to edit in `configuration.yaml`.
@@ -53,6 +58,13 @@ full list as the `tasks` attribute of `sensor.unified_todos`.
 | `sensor.github_issues` *(if configured)* | open GitHub issues assigned to you | `tasks` |
 | `sensor.clickup` *(if configured)* | open ClickUp tasks | `tasks` |
 | `sensor.google_tasks` *(if configured)* | open Google Tasks | `tasks` |
+| `todo.github_issues` *(if configured)* | open GitHub issues, as a To-do list | add item → new issue; check off → close issue |
+| `todo.clickup` *(if configured)* | open ClickUp tasks, as a To-do list | add item → new task; check off → done status |
+| `todo.google_tasks` *(if configured)* | open Google Tasks, as a To-do list | add item → new task; check off → completed |
+
+The `todo.*` entities work with Home Assistant's built-in **To-do list** card
+and the mobile app. "Add item" is only offered once that source has a
+destination configured (see [Creating & completing tasks](#creating--completing-tasks)).
 
 ## Installation
 
@@ -88,8 +100,11 @@ the integration's **Configure** button.
 3. Paste it into the **GitHub personal access token** field.
 4. *(Optional)* Set a **repo filter** — a case-insensitive regex matched against
    each issue's `owner/repo` name, e.g. `sr2` to only include SR2 repos.
+5. *(Optional)* Set **GitHub repo for new issues** (`owner/repo`) if you want to
+   create issues from Home Assistant. The `repo` scope already covers this.
 
-Fetches open **issues assigned to you** (pull requests are excluded).
+Fetches open **issues assigned to you** (pull requests are excluded). Marking a
+GitHub item complete **closes** the issue.
 
 ### ClickUp (API token)
 
@@ -157,6 +172,47 @@ content: |
 To group by source, iterate over each per-source sensor's `tasks` attribute
 instead, or filter the unified list with `selectattr('source', 'eq', 'github')`.
 
+## Creating & completing tasks
+
+Two ways to write back:
+
+### 1. To-do list card (no YAML)
+
+Add a **To-do list** card and point it at `todo.github_issues`,
+`todo.clickup`, or `todo.google_tasks`. Type into the box to create a task in
+that service, and tick the checkbox to complete it. You pick the destination
+service simply by choosing which list you add to.
+
+### 2. Services (for buttons, scripts & automations)
+
+| Service | What it does |
+| --- | --- |
+| `unified_todo.create_task` | Create a task. Fields: `source`, `summary`, optional `description`, optional `due_date`. |
+| `unified_todo.complete_task` | Complete a task. Fields: `source`, `task_id` (the task's `source_id`). |
+
+```yaml
+action: unified_todo.create_task
+data:
+  source: clickup
+  summary: Order more navy thread
+  description: 5 cones
+  due_date: "2026-06-15"
+```
+
+### Where new tasks go
+
+Creating needs a destination per service (completing does not). Set these in
+the integration's **Configure** dialog:
+
+| Service | Setting | Notes |
+| --- | --- | --- |
+| GitHub | **GitHub repo for new issues** (`owner/repo`) | New tasks open as issues here. Completing **closes** the issue. Token needs the `repo` scope (write). |
+| ClickUp | **ClickUp list ID for new tasks** | The numeric list id from the list's URL. Completing moves the task to that list's *done* status. |
+| Google Tasks | **Google task list ID** *(optional)* | Defaults to your primary list (`@default`). Needs the `tasks` scope — `tasks.readonly` can read but **cannot** create/complete. |
+
+Until a service has its destination set, its To-do list still shows tasks and
+lets you check them off — it just won't offer "add item".
+
 ## Data Schema
 
 Every task is normalized to this shape (the `tasks` attribute is a list of
@@ -172,9 +228,14 @@ these):
   "url": "https://...",
   "assignee": "user@example.com or username",
   "description": "snippet or null",
-  "updated_at": "2026-06-01T12:34:56Z or null"
+  "updated_at": "2026-06-01T12:34:56Z or null",
+  "repo": "owner/repo or null",
+  "list_id": "google task list id or null"
 }
 ```
+
+`repo` (GitHub) and `list_id` (Google Tasks) are carried so a completion knows
+where to write back; they're `null` for sources that don't use them.
 
 GitHub priority is inferred from labels (e.g. `priority: high`, `P1`, `urgent`);
 ClickUp priority maps urgent/high → high, normal → medium, low → low; Google
@@ -186,6 +247,7 @@ Tasks has no priority.
 - [x] One unified sensor with the full task list, plus per-source count sensors
 - [x] UI config flow with credential validation; editable options
 - [x] Configurable refresh interval; resilient to a single source failing
+- [x] Create tasks and mark them complete (To-do list entities + services)
 - [ ] Custom Lovelace card (instead of a Markdown card) for nicer grouping/filtering
 - [ ] Optional in-HA Google OAuth flow (no manual refresh-token step)
 - [ ] Morning digest / due-date reminder automations (blueprint)

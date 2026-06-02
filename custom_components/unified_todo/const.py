@@ -75,3 +75,25 @@ ATTR_DESTINATION: Final = "destination"
 COMBINED_OBJECT_ID: Final = "unified_todos"
 # Separator used to pack ``source`` + ``source_id`` into a combined item uid.
 COMBINED_UID_SEP: Final = ":"
+
+# ---------------------------------------------------------------------------
+# Recurring tasks (stored as config subentries)
+# ---------------------------------------------------------------------------
+SUBENTRY_RECURRING: Final = "recurring_task"
+
+# Subentry data keys (source/summary/description/destination reuse the ATTR_*
+# keys above so a recurring rule maps straight onto ``create_task``).
+CONF_FREQUENCY: Final = "frequency"
+CONF_TIME: Final = "time"
+CONF_WEEKDAYS: Final = "weekdays"
+CONF_DAY_OF_MONTH: Final = "day_of_month"
+CONF_DUE_OFFSET_DAYS: Final = "due_offset_days"
+CONF_ENABLED: Final = "enabled"
+
+FREQ_DAILY: Final = "daily"
+FREQ_WEEKLY: Final = "weekly"
+FREQ_MONTHLY: Final = "monthly"
+FREQUENCIES: Final = (FREQ_DAILY, FREQ_WEEKLY, FREQ_MONTHLY)
+
+# Mon..Sun, indexed to match datetime.weekday().
+WEEKDAYS: Final = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")

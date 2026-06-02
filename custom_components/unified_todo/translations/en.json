@@ -66,6 +66,79 @@
       "google_auth": "Google rejected the client credentials or refresh token."
     }
   },
+  "config_subentries": {
+    "recurring_task": {
+      "initiate_flow": {
+        "user": "Add recurring task",
+        "reconfigure": "Edit recurring task"
+      },
+      "entry_type": "Recurring task",
+      "step": {
+        "user": {
+          "title": "Add recurring task",
+          "description": "Create a task automatically on a schedule. It uses the same create path as the card — leave Destination blank to use the service's configured default.",
+          "data": {
+            "source": "Service",
+            "summary": "Title",
+            "description": "Description",
+            "destination": "Destination (optional)",
+            "frequency": "Repeat",
+            "time": "Time of day",
+            "weekdays": "On these days (weekly)",
+            "day_of_month": "Day of month (monthly)",
+            "due_offset_days": "Due date: days after it's created (0 = same day)",
+            "enabled": "Enabled"
+          },
+          "data_description": {
+            "destination": "GitHub owner/repo, ClickUp list id, or Google task list id. Blank uses the default.",
+            "weekdays": "Only used when Repeat is Weekly.",
+            "day_of_month": "Only used when Repeat is Monthly (clamped to the last day on short months)."
+          }
+        },
+        "reconfigure": {
+          "title": "Edit recurring task",
+          "description": "Update this recurring rule.",
+          "data": {
+            "source": "Service",
+            "summary": "Title",
+            "description": "Description",
+            "destination": "Destination (optional)",
+            "frequency": "Repeat",
+            "time": "Time of day",
+            "weekdays": "On these days (weekly)",
+            "day_of_month": "Day of month (monthly)",
+            "due_offset_days": "Due date: days after it's created (0 = same day)",
+            "enabled": "Enabled"
+          }
+        }
+      },
+      "error": {
+        "summary_required": "A title is required.",
+        "weekdays_required": "Pick at least one weekday for a weekly schedule.",
+        "github_repo_invalid": "The GitHub repo must be in owner/repo form, e.g. jeffreyrdubois/sr2-code."
+      }
+    }
+  },
+  "selector": {
+    "frequency": {
+      "options": {
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      }
+    },
+    "weekdays": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "unified_todos": {

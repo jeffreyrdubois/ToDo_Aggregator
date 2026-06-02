@@ -11,17 +11,29 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryFlow,
     OptionsFlow,
+    SubentryFlowResult,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import api
 from .const import (
+    ALL_SOURCES,
+    ATTR_DESCRIPTION,
+    ATTR_DESTINATION,
+    ATTR_SOURCE,
+    ATTR_SUMMARY,
     CONF_CLICKUP_ASSIGNED_ONLY,
     CONF_CLICKUP_DEFAULT_LIST_ID,
     CONF_CLICKUP_TEAM_ID,
     CONF_CLICKUP_TOKEN,
+    CONF_DAY_OF_MONTH,
+    CONF_DUE_OFFSET_DAYS,
+    CONF_ENABLED,
+    CONF_FREQUENCY,
     CONF_GITHUB_DEFAULT_REPO,
     CONF_GITHUB_FILTER,
     CONF_GITHUB_TOKEN,
@@ -30,8 +42,16 @@ from .const import (
     CONF_GOOGLE_DEFAULT_LIST,
     CONF_GOOGLE_REFRESH_TOKEN,
     CONF_SCAN_INTERVAL_MINUTES,
+    CONF_TIME,
+    CONF_WEEKDAYS,
     DEFAULT_SCAN_INTERVAL_MINUTES,
     DOMAIN,
+    FREQ_WEEKLY,
+    FREQUENCIES,
+    SOURCE_GITHUB,
+    SOURCE_LABELS,
+    SUBENTRY_RECURRING,
+    WEEKDAYS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -215,6 +235,13 @@ class UnifiedTodoConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(entry: ConfigEntry) -> UnifiedTodoOptionsFlow:
         return UnifiedTodoOptionsFlow()
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        return {SUBENTRY_RECURRING: RecurringTaskSubentryFlowHandler}
+
 
 class UnifiedTodoOptionsFlow(OptionsFlow):
     """Allow editing credentials, filters and the poll interval after setup."""
@@ -238,5 +265,157 @@ class UnifiedTodoOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_credentials_schema(current),
+            errors=errors,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Recurring task subentries
+# ---------------------------------------------------------------------------
+
+
+def _recurring_schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Build the add/edit form for a recurring task rule."""
+
+    def d(key: str, fallback: Any) -> Any:
+        return defaults.get(key, fallback)
+
+    source_options = [
+        selector.SelectOptionDict(value=s, label=SOURCE_LABELS.get(s, s))
+        for s in ALL_SOURCES
+    ]
+    freq_options = [selector.SelectOptionDict(value=f, label=f) for f in FREQUENCIES]
+    weekday_options = [selector.SelectOptionDict(value=w, label=w) for w in WEEKDAYS]
+
+    return vol.Schema(
+        {
+            vol.Required(ATTR_SOURCE, default=d(ATTR_SOURCE, SOURCE_GITHUB)): (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=source_options)
+                )
+            ),
+            vol.Required(ATTR_SUMMARY, default=d(ATTR_SUMMARY, "")): (
+                selector.TextSelector()
+            ),
+            vol.Optional(ATTR_DESCRIPTION, default=d(ATTR_DESCRIPTION, "")): (
+                selector.TextSelector(
+                    selector.TextSelectorConfig(multiline=True)
+                )
+            ),
+            vol.Optional(ATTR_DESTINATION, default=d(ATTR_DESTINATION, "")): (
+                selector.TextSelector()
+            ),
+            vol.Required(CONF_FREQUENCY, default=d(CONF_FREQUENCY, FREQ_WEEKLY)): (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=freq_options, translation_key="frequency"
+                    )
+                )
+            ),
+            vol.Required(CONF_TIME, default=d(CONF_TIME, "09:00")): (
+                selector.TimeSelector()
+            ),
+            vol.Optional(CONF_WEEKDAYS, default=d(CONF_WEEKDAYS, ["mon"])): (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=weekday_options,
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                        translation_key="weekdays",
+                    )
+                )
+            ),
+            vol.Optional(CONF_DAY_OF_MONTH, default=d(CONF_DAY_OF_MONTH, 1)): (
+                selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1, max=31, mode=selector.NumberSelectorMode.BOX
+                    )
+                )
+            ),
+            vol.Optional(CONF_DUE_OFFSET_DAYS, default=d(CONF_DUE_OFFSET_DAYS, 0)): (
+                selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0, max=365, mode=selector.NumberSelectorMode.BOX
+                    )
+                )
+            ),
+            vol.Required(CONF_ENABLED, default=d(CONF_ENABLED, True)): (
+                selector.BooleanSelector()
+            ),
+        }
+    )
+
+
+def _clean_recurring(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Normalise a submitted recurring form into stored subentry data."""
+    data = dict(user_input)
+    for key in (ATTR_DESCRIPTION, ATTR_DESTINATION):
+        if not (data.get(key) or "").strip():
+            data.pop(key, None)
+        elif isinstance(data.get(key), str):
+            data[key] = data[key].strip()
+    for key in (CONF_DAY_OF_MONTH, CONF_DUE_OFFSET_DAYS):
+        if data.get(key) is not None:
+            data[key] = int(data[key])
+    if data.get(CONF_TIME):
+        # TimeSelector yields HH:MM:SS; keep HH:MM.
+        data[CONF_TIME] = str(data[CONF_TIME])[:5]
+    if data.get(ATTR_SUMMARY):
+        data[ATTR_SUMMARY] = data[ATTR_SUMMARY].strip()
+    return data
+
+
+def _validate_recurring(data: dict[str, Any]) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    if not (data.get(ATTR_SUMMARY) or "").strip():
+        errors[ATTR_SUMMARY] = "summary_required"
+    if data.get(CONF_FREQUENCY) == FREQ_WEEKLY and not data.get(CONF_WEEKDAYS):
+        errors[CONF_WEEKDAYS] = "weekdays_required"
+    dest = data.get(ATTR_DESTINATION)
+    if data.get(ATTR_SOURCE) == SOURCE_GITHUB and dest and not _REPO_RE.match(dest):
+        errors[ATTR_DESTINATION] = "github_repo_invalid"
+    return errors
+
+
+class RecurringTaskSubentryFlowHandler(ConfigSubentryFlow):
+    """Add or edit a single recurring task rule."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        return await self._async_form(user_input, reconfigure=False)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        return await self._async_form(user_input, reconfigure=True)
+
+    async def _async_form(
+        self, user_input: dict[str, Any] | None, reconfigure: bool
+    ) -> SubentryFlowResult:
+        errors: dict[str, str] = {}
+        if reconfigure and user_input is None:
+            defaults = dict(self._get_reconfigure_subentry().data)
+        else:
+            defaults = user_input or {}
+
+        if user_input is not None:
+            data = _clean_recurring(user_input)
+            errors = _validate_recurring(data)
+            if not errors:
+                title = data[ATTR_SUMMARY]
+                if reconfigure:
+                    return self.async_update_and_abort(
+                        self._get_entry(),
+                        self._get_reconfigure_subentry(),
+                        title=title,
+                        data=data,
+                    )
+                return self.async_create_entry(title=title, data=data)
+            defaults = user_input
+
+        return self.async_show_form(
+            step_id="reconfigure" if reconfigure else "user",
+            data_schema=_recurring_schema(defaults),
             errors=errors,
         )

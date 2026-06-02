@@ -267,9 +267,12 @@ Either way the rule captures the **service**, **title** (+ optional description 
 destination), how it **repeats**, and the **time of day**. Leave **Destination**
 blank to use that service's configured default.
 
-Rules show up as rows under the integration — **edit, disable, or delete** them
-there any time; changes take effect immediately. (Editing/removing is done in
-Settings; the card creates new ones.)
+The **card manages the whole lifecycle**: under the task list it shows a
+**🔁 Recurring** section listing every rule with its schedule. From there you
+can **enable/disable** (the checkbox), **✎ Edit** (loads it back into the form —
+the button becomes *Save*), or **🗑 Delete** (click twice to confirm). Rules
+also appear as rows under the integration in Settings if you prefer to manage
+them there; both stay in sync.
 
 Notes:
 - Uses the same create path as the card/service, including per-source

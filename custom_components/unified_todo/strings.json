@@ -212,6 +212,34 @@
         "due_offset_days": { "name": "Due in N days", "description": "Due date = creation date + this many days (0 = same day)." },
         "enabled": { "name": "Enabled", "description": "Whether the rule is active." }
       }
+    },
+    "list_recurring_tasks": {
+      "name": "List recurring tasks",
+      "description": "Return the configured recurring task rules (used by the card)."
+    },
+    "update_recurring_task": {
+      "name": "Update recurring task",
+      "description": "Replace a recurring rule's settings (send the full rule).",
+      "fields": {
+        "rule_id": { "name": "Rule ID", "description": "The rule's id from list_recurring_tasks." },
+        "source": { "name": "Service", "description": "Which service to create the task in." },
+        "summary": { "name": "Title", "description": "The task title." },
+        "description": { "name": "Description", "description": "Optional notes / issue body." },
+        "destination": { "name": "Destination", "description": "GitHub owner/repo, ClickUp list id, or Google list id. Blank uses the default." },
+        "frequency": { "name": "Repeat", "description": "Daily, weekly or monthly." },
+        "time": { "name": "Time of day", "description": "When to create it (HH:MM)." },
+        "weekdays": { "name": "Weekdays", "description": "Which days (weekly only)." },
+        "day_of_month": { "name": "Day of month", "description": "Day of month (monthly only)." },
+        "due_offset_days": { "name": "Due in N days", "description": "Due date = creation date + this many days (0 = same day)." },
+        "enabled": { "name": "Enabled", "description": "Whether the rule is active." }
+      }
+    },
+    "delete_recurring_task": {
+      "name": "Delete recurring task",
+      "description": "Delete a recurring rule.",
+      "fields": {
+        "rule_id": { "name": "Rule ID", "description": "The rule's id from list_recurring_tasks." }
+      }
     }
   }
 }

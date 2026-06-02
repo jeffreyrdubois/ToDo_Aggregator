@@ -1,0 +1,72 @@
+create_task:
+  name: Create task
+  description: >-
+    Create a new task in one of the connected services. The service you pick
+    determines where the task is created (the GitHub repo / ClickUp list
+    configured in the integration's options).
+  fields:
+    source:
+      name: Service
+      description: Which service to create the task in.
+      required: true
+      example: google_tasks
+      selector:
+        select:
+          options:
+            - label: GitHub Issues
+              value: github
+            - label: ClickUp
+              value: clickup
+            - label: Google Tasks
+              value: google_tasks
+    summary:
+      name: Title
+      description: The task title (GitHub issue title / task name).
+      required: true
+      example: Order more thread
+      selector:
+        text:
+    description:
+      name: Description
+      description: Optional longer description / notes / issue body.
+      required: false
+      example: Navy and white, 5 cones each.
+      selector:
+        text:
+          multiline: true
+    due_date:
+      name: Due date
+      description: Optional due date. Ignored by GitHub (issues have no due date).
+      required: false
+      selector:
+        date:
+
+complete_task:
+  name: Complete task
+  description: >-
+    Mark a task complete in its source. For GitHub this closes the issue; for
+    ClickUp it moves the task to its list's done status.
+  fields:
+    source:
+      name: Service
+      description: Which service the task belongs to.
+      required: true
+      example: github
+      selector:
+        select:
+          options:
+            - label: GitHub Issues
+              value: github
+            - label: ClickUp
+              value: clickup
+            - label: Google Tasks
+              value: google_tasks
+    task_id:
+      name: Task ID
+      description: >-
+        The task's source id — the `source_id` field on the unified task
+        (GitHub issue number, ClickUp task id, or Google task id).
+      required: true
+      example: "71"
+      selector:
+        text:

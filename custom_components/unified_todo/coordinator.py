@@ -32,6 +32,7 @@ from .const import (
     SOURCE_GITHUB,
     SOURCE_GOOGLE,
 )
+from .writers import WRITERS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +89,73 @@ class UnifiedTodoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ):
             sources.append(SOURCE_GOOGLE)
         return sources
+
+    def can_create(self, source: str) -> bool:
+        """Whether new tasks can be created in ``source`` with the current config."""
+        writer = WRITERS.get(source)
+        return (
+            source in self.enabled_sources
+            and writer is not None
+            and writer.can_create(self._config)
+        )
+
+    def can_complete(self, source: str) -> bool:
+        """Whether tasks in ``source`` can be marked complete from Home Assistant."""
+        writer = WRITERS.get(source)
+        return (
+            source in self.enabled_sources
+            and writer is not None
+            and writer.can_complete(self._config)
+        )
+
+    def get_task(self, source: str, source_id: str) -> dict[str, Any] | None:
+        """Return the cached unified task for ``source``/``source_id``, if known."""
+        if not self.data:
+            return None
+        for task in self.data.get("by_source", {}).get(source, []):
+            if str(task.get("source_id")) == str(source_id):
+                return task
+        return None
+
+    async def async_create_task(
+        self,
+        source: str,
+        summary: str,
+        description: str | None = None,
+        due_date: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a task in ``source`` and refresh so it shows up immediately."""
+        writer = WRITERS.get(source)
+        if writer is None or source not in self.enabled_sources:
+            raise UpdateFailed(f"Source '{source}' is not configured")
+        if not writer.can_create(self._config):
+            raise UpdateFailed(
+                f"Creating tasks in '{source}' needs a destination configured "
+                "(see the integration's Configure dialog)"
+            )
+        task = await writer.create(
+            self._session,
+            self._config,
+            summary=summary,
+            description=description,
+            due_date=due_date,
+        )
+        await self.async_request_refresh()
+        return task
+
+    async def async_complete_task(self, source: str, source_id: str) -> None:
+        """Mark a task complete in its source and refresh."""
+        writer = WRITERS.get(source)
+        if writer is None or source not in self.enabled_sources:
+            raise UpdateFailed(f"Source '{source}' is not configured")
+        if not writer.can_complete(self._config):
+            raise UpdateFailed(f"Completing tasks in '{source}' is not supported")
+        task = self.get_task(source, source_id) or {
+            "source": source,
+            "source_id": str(source_id),
+        }
+        await writer.complete(self._session, self._config, task)
+        await self.async_request_refresh()
 
     async def _async_update_data(self) -> dict[str, Any]:
         config = self._config

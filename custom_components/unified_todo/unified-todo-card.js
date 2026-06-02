@@ -638,7 +638,9 @@ class UnifiedTodoCard extends HTMLElement {
       const payload = res && res.response ? res.response : res || {};
       this._rules = payload.rules || [];
     } catch (err) {
-      // Keep the previous list; the entry may be mid-reload.
+      // Keep the previous list and allow a retry on the next hass update
+      // (the entry may be mid-reload).
+      this._rulesLoaded = false;
       return;
     }
     this._renderRules();

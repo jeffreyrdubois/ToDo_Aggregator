@@ -62,9 +62,16 @@ PRIORITY_LOW: Final = "low"
 # Services for creating / completing tasks.
 SERVICE_CREATE_TASK: Final = "create_task"
 SERVICE_COMPLETE_TASK: Final = "complete_task"
+SERVICE_LIST_DESTINATIONS: Final = "list_destinations"
 
 ATTR_SOURCE: Final = "source"
 ATTR_SUMMARY: Final = "summary"
 ATTR_DESCRIPTION: Final = "description"
 ATTR_DUE_DATE: Final = "due_date"
 ATTR_TASK_ID: Final = "task_id"
+ATTR_DESTINATION: Final = "destination"
+
+# Object id / uid for the combined (all-sources) To-do list entity.
+COMBINED_OBJECT_ID: Final = "unified_todos"
+# Separator used to pack ``source`` + ``source_id`` into a combined item uid.
+COMBINED_UID_SEP: Final = ":"

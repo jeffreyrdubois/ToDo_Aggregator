@@ -117,21 +117,41 @@ class UnifiedTodoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return task
         return None
 
+    async def async_list_destinations(self, source: str) -> dict[str, Any]:
+        """Return the destinations a task can be created in for ``source``.
+
+        ``{"source", "destinations": [{"id", "name"}], "default": id|None}``.
+        """
+        writer = WRITERS.get(source)
+        if writer is None or source not in self.enabled_sources:
+            raise UpdateFailed(f"Source '{source}' is not configured")
+        destinations = await writer.list_destinations(self._session, self._config)
+        return {
+            "source": source,
+            "destinations": destinations,
+            "default": writer.default_destination(self._config),
+        }
+
     async def async_create_task(
         self,
         source: str,
         summary: str,
         description: str | None = None,
         due_date: str | None = None,
+        destination: str | None = None,
     ) -> dict[str, Any]:
-        """Create a task in ``source`` and refresh so it shows up immediately."""
+        """Create a task in ``source`` and refresh so it shows up immediately.
+
+        ``destination`` (repo / list id) overrides the configured default. When
+        it is omitted a default must be configured.
+        """
         writer = WRITERS.get(source)
         if writer is None or source not in self.enabled_sources:
             raise UpdateFailed(f"Source '{source}' is not configured")
-        if not writer.can_create(self._config):
+        if destination is None and not writer.can_create(self._config):
             raise UpdateFailed(
-                f"Creating tasks in '{source}' needs a destination configured "
-                "(see the integration's Configure dialog)"
+                f"Creating tasks in '{source}' needs a destination — pick one or "
+                "set a default in the integration's Configure dialog"
             )
         task = await writer.create(
             self._session,
@@ -139,6 +159,7 @@ class UnifiedTodoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             summary=summary,
             description=description,
             due_date=due_date,
+            destination=destination,
         )
         await self.async_request_refresh()
         return task

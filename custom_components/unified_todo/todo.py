@@ -32,7 +32,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import UnifiedTodoError
-from .const import DOMAIN, SOURCE_LABELS, SOURCE_OBJECT_IDS
+from .const import (
+    COMBINED_OBJECT_ID,
+    COMBINED_UID_SEP,
+    DOMAIN,
+    SOURCE_LABELS,
+    SOURCE_OBJECT_IDS,
+)
 from .coordinator import UnifiedTodoCoordinator
 
 TODO_ENTITY_ID_FORMAT = "todo.{}"
@@ -46,11 +52,23 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up one To-do list entity per configured source."""
+    """Set up the combined To-do list plus one per configured source."""
     coordinator: UnifiedTodoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
+    entities: list[TodoListEntity] = [
         UnifiedTodoListEntity(coordinator, entry, source)
         for source in coordinator.enabled_sources
+    ]
+    if coordinator.enabled_sources:
+        entities.insert(0, UnifiedCombinedTodoListEntity(coordinator, entry))
+    async_add_entities(entities)
+
+
+def _device_info(entry: ConfigEntry) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Unified To-Do Aggregator",
+        manufacturer="Unified To-Do",
+        entry_type=DeviceEntryType.SERVICE,
     )
 
 
@@ -80,12 +98,7 @@ class UnifiedTodoListEntity(
         self._source = source
         self._attr_name = SOURCE_LABELS.get(source, source)
         self._attr_unique_id = f"{entry.entry_id}_{source}_todo"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="Unified To-Do Aggregator",
-            manufacturer="Unified To-Do",
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = _device_info(entry)
         self.entity_id = generate_entity_id(
             TODO_ENTITY_ID_FORMAT,
             SOURCE_OBJECT_IDS.get(source, source),
@@ -143,5 +156,71 @@ class UnifiedTodoListEntity(
             )
         try:
             await self.coordinator.async_complete_task(self._source, item.uid)
+        except UnifiedTodoError as err:
+            raise HomeAssistantError(str(err)) from err
+
+
+class UnifiedCombinedTodoListEntity(
+    CoordinatorEntity[UnifiedTodoCoordinator], TodoListEntity
+):
+    """One list showing every source's open tasks.
+
+    Check an item off here and the integration routes the completion to the
+    right service automatically — no need to know which list it came from. The
+    item ``uid`` packs the source and the source's own id (``source:source_id``)
+    so completion knows where to go.
+
+    Creating is intentionally not offered on the combined list (the
+    destination would be ambiguous) — use a per-source list, the custom card, or
+    the ``create_task`` service for that.
+    """
+
+    _attr_icon = "mdi:format-list-checks"
+    _attr_name = "Unified To-Dos"
+    _attr_supported_features = TodoListEntityFeature.UPDATE_TODO_ITEM
+
+    def __init__(
+        self, coordinator: UnifiedTodoCoordinator, entry: ConfigEntry
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_combined_todo"
+        self._attr_device_info = _device_info(entry)
+        self.entity_id = generate_entity_id(
+            TODO_ENTITY_ID_FORMAT, COMBINED_OBJECT_ID, hass=coordinator.hass
+        )
+
+    @property
+    def todo_items(self) -> list[TodoItem] | None:
+        if not self.coordinator.data:
+            return None
+        items: list[TodoItem] = []
+        for task in self.coordinator.data.get("tasks", []):
+            source = task.get("source")
+            source_id = task.get("source_id")
+            if not source or source_id is None:
+                continue
+            label = SOURCE_LABELS.get(source, source)
+            items.append(
+                TodoItem(
+                    uid=f"{source}{COMBINED_UID_SEP}{source_id}",
+                    summary=f"{task.get('title') or '(untitled)'} · {label}",
+                    status=TodoItemStatus.NEEDS_ACTION,
+                    due=_parse_due(task.get("due_date")),
+                    description=task.get("description"),
+                )
+            )
+        return items
+
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        if item.status != TodoItemStatus.COMPLETED:
+            raise HomeAssistantError(
+                "Editing items isn't supported — open the task's link to edit "
+                "it in the source app."
+            )
+        source, _, source_id = (item.uid or "").partition(COMBINED_UID_SEP)
+        if not source or not source_id:
+            raise HomeAssistantError(f"Unrecognised task id: {item.uid}")
+        try:
+            await self.coordinator.async_complete_task(source, source_id)
         except UnifiedTodoError as err:
             raise HomeAssistantError(str(err)) from err

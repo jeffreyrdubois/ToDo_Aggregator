@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import MappingProxyType
 
 import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import (
     HomeAssistant,
@@ -34,10 +35,21 @@ from .const import (
     ATTR_SOURCE,
     ATTR_SUMMARY,
     ATTR_TASK_ID,
+    CONF_DAY_OF_MONTH,
+    CONF_DUE_OFFSET_DAYS,
+    CONF_ENABLED,
+    CONF_FREQUENCY,
+    CONF_TIME,
+    CONF_WEEKDAYS,
     DOMAIN,
+    FREQ_WEEKLY,
+    FREQUENCIES,
+    SERVICE_ADD_RECURRING,
     SERVICE_COMPLETE_TASK,
     SERVICE_CREATE_TASK,
     SERVICE_LIST_DESTINATIONS,
+    SUBENTRY_RECURRING,
+    WEEKDAYS,
 )
 from .coordinator import UnifiedTodoCoordinator
 from .recurring import RecurringScheduler
@@ -72,6 +84,47 @@ LIST_DESTINATIONS_SCHEMA = vol.Schema(
         vol.Required(ATTR_SOURCE): vol.In(ALL_SOURCES),
     }
 )
+
+ADD_RECURRING_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_SOURCE): vol.In(ALL_SOURCES),
+        vol.Required(ATTR_SUMMARY): cv.string,
+        vol.Optional(ATTR_DESCRIPTION): cv.string,
+        vol.Optional(ATTR_DESTINATION): cv.string,
+        vol.Optional(CONF_FREQUENCY, default=FREQ_WEEKLY): vol.In(FREQUENCIES),
+        vol.Optional(CONF_TIME, default="09:00"): cv.string,
+        vol.Optional(CONF_WEEKDAYS, default=list): vol.All(
+            cv.ensure_list, [vol.In(WEEKDAYS)]
+        ),
+        vol.Optional(CONF_DAY_OF_MONTH, default=1): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=31)
+        ),
+        vol.Optional(CONF_DUE_OFFSET_DAYS, default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=365)
+        ),
+        vol.Optional(CONF_ENABLED, default=True): cv.boolean,
+    }
+)
+
+
+def _build_recurring_data(call: ServiceCall) -> dict:
+    """Turn an add_recurring_task call into stored subentry data."""
+    data: dict = {
+        ATTR_SOURCE: call.data[ATTR_SOURCE],
+        ATTR_SUMMARY: call.data[ATTR_SUMMARY].strip(),
+        CONF_FREQUENCY: call.data[CONF_FREQUENCY],
+        CONF_TIME: str(call.data[CONF_TIME])[:5],
+        CONF_DAY_OF_MONTH: call.data[CONF_DAY_OF_MONTH],
+        CONF_DUE_OFFSET_DAYS: call.data[CONF_DUE_OFFSET_DAYS],
+        CONF_ENABLED: call.data[CONF_ENABLED],
+    }
+    if (desc := (call.data.get(ATTR_DESCRIPTION) or "").strip()):
+        data[ATTR_DESCRIPTION] = desc
+    if (dest := (call.data.get(ATTR_DESTINATION) or "").strip()):
+        data[ATTR_DESTINATION] = dest
+    if call.data.get(CONF_WEEKDAYS):
+        data[CONF_WEEKDAYS] = call.data[CONF_WEEKDAYS]
+    return data
 
 
 def _only_coordinator(hass: HomeAssistant) -> UnifiedTodoCoordinator:
@@ -121,6 +174,23 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         except UnifiedTodoError as err:
             raise HomeAssistantError(str(err)) from err
 
+    async def _handle_add_recurring(call: ServiceCall) -> None:
+        coordinator = _only_coordinator(hass)
+        data = _build_recurring_data(call)
+        if data[CONF_FREQUENCY] == FREQ_WEEKLY and not data.get(CONF_WEEKDAYS):
+            raise HomeAssistantError(
+                "Pick at least one weekday for a weekly schedule."
+            )
+        subentry = ConfigSubentry(
+            data=MappingProxyType(data),
+            subentry_type=SUBENTRY_RECURRING,
+            title=data[ATTR_SUMMARY],
+            unique_id=None,
+        )
+        # Adding the subentry fires the entry's update listeners, which reloads
+        # the entry and (re)schedules the new rule.
+        hass.config_entries.async_add_subentry(coordinator.entry, subentry)
+
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_TASK, _handle_create, schema=CREATE_TASK_SCHEMA
     )
@@ -133,6 +203,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _handle_list_destinations,
         schema=LIST_DESTINATIONS_SCHEMA,
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_RECURRING, _handle_add_recurring, schema=ADD_RECURRING_SCHEMA
     )
 
 
@@ -196,6 +269,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, SERVICE_CREATE_TASK)
             hass.services.async_remove(DOMAIN, SERVICE_COMPLETE_TASK)
             hass.services.async_remove(DOMAIN, SERVICE_LIST_DESTINATIONS)
+            hass.services.async_remove(DOMAIN, SERVICE_ADD_RECURRING)
     return unload_ok
 
 

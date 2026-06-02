@@ -99,6 +99,27 @@ class UnifiedTodoCard extends HTMLElement {
     card.appendChild(body);
     this.appendChild(card);
     this._built = true;
+    this._updateVisibility();
+  }
+
+  _updateVisibility() {
+    const src = this._provider ? this._provider.value : "";
+    const repeat = this._repeat ? this._repeat.value : "";
+    const recurring = repeat !== "";
+    // Absolute due-date only applies to one-off, non-GitHub tasks.
+    if (this._dueField) {
+      this._dueField.style.display = !recurring && src !== "github" ? "" : "none";
+    }
+    if (this._timeField) this._timeField.style.display = recurring ? "" : "none";
+    if (this._weekdaysField) {
+      this._weekdaysField.style.display = repeat === "weekly" ? "" : "none";
+    }
+    if (this._domField) {
+      this._domField.style.display = repeat === "monthly" ? "" : "none";
+    }
+    if (this._createBtn) {
+      this._createBtn.textContent = recurring ? "Schedule" : "Create";
+    }
   }
 
   _styleEl() {
@@ -145,6 +166,13 @@ class UnifiedTodoCard extends HTMLElement {
       .utc-btn[disabled] { opacity: 0.5; cursor: default; }
       .utc-note { font-size: 12px; color: var(--secondary-text-color); }
       .utc-note.err { color: var(--error-color, #e45649); }
+      .utc-days { display: flex; flex-wrap: wrap; gap: 4px; }
+      .utc-day {
+        width: 34px; height: 32px; border-radius: 6px; cursor: pointer; font: inherit;
+        border: 1px solid var(--divider-color, #ccc);
+        background: var(--card-background-color, #fff); color: var(--primary-text-color);
+      }
+      .utc-day.sel { background: var(--primary-color); color: var(--text-primary-color, #fff); border-color: var(--primary-color); }
     `;
     return style;
   }
@@ -185,6 +213,69 @@ class UnifiedTodoCard extends HTMLElement {
     this._due.type = "date";
     this._dueField = this._field("Due date", this._due);
     fields.appendChild(this._dueField);
+
+    // Repeat (turns the create into a recurring rule)
+    this._repeat = document.createElement("select");
+    for (const [val, label] of [
+      ["", "Once"],
+      ["daily", "Daily"],
+      ["weekly", "Weekly"],
+      ["monthly", "Monthly"],
+    ]) {
+      const o = document.createElement("option");
+      o.value = val;
+      o.textContent = label;
+      this._repeat.appendChild(o);
+    }
+    this._repeat.addEventListener("change", () => this._updateVisibility());
+    fields.appendChild(this._field("Repeat", this._repeat));
+
+    // Time of day (recurring only)
+    this._rtime = document.createElement("input");
+    this._rtime.type = "time";
+    this._rtime.value = "09:00";
+    this._timeField = this._field("Time of day", this._rtime);
+    fields.appendChild(this._timeField);
+
+    // Weekday picker (weekly only)
+    this._weekdaySel = new Set();
+    this._weekdaysWrap = document.createElement("div");
+    this._weekdaysWrap.className = "utc-days";
+    for (const [val, label] of [
+      ["mon", "Mo"],
+      ["tue", "Tu"],
+      ["wed", "We"],
+      ["thu", "Th"],
+      ["fri", "Fr"],
+      ["sat", "Sa"],
+      ["sun", "Su"],
+    ]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "utc-day";
+      b.textContent = label;
+      b.addEventListener("click", () => {
+        if (this._weekdaySel.has(val)) {
+          this._weekdaySel.delete(val);
+          b.classList.remove("sel");
+        } else {
+          this._weekdaySel.add(val);
+          b.classList.add("sel");
+        }
+      });
+      this._weekdaysWrap.appendChild(b);
+    }
+    this._weekdaysField = this._field("On these days", this._weekdaysWrap);
+    fields.appendChild(this._weekdaysField);
+
+    // Day of month (monthly only)
+    this._dom = document.createElement("input");
+    this._dom.type = "number";
+    this._dom.min = "1";
+    this._dom.max = "31";
+    this._dom.value = "1";
+    this._domField = this._field("Day of month", this._dom);
+    fields.appendChild(this._domField);
 
     // Actions
     const actions = document.createElement("div");
@@ -319,8 +410,7 @@ class UnifiedTodoCard extends HTMLElement {
   async _onProviderChange() {
     const source = this._provider.value;
     if (!source) return;
-    // GitHub issues have no due date.
-    this._dueField.style.display = source === "github" ? "none" : "";
+    this._updateVisibility();
     this._destination.innerHTML = "";
     const loading = document.createElement("option");
     loading.textContent = "Loading…";
@@ -402,22 +492,51 @@ class UnifiedTodoCard extends HTMLElement {
     if (!source) return this._setNote("Pick a service first.", true);
     if (!summary) return this._setNote("A title is required.", true);
 
-    const data = { source, summary };
-    if (this._description.value.trim()) data.description = this._description.value.trim();
-    if (source !== "github" && this._due.value) data.due_date = this._due.value;
-    if (this._destination.value) data.destination = this._destination.value;
+    const recurring = this._repeat.value !== "";
+    let service;
+    let data;
+    if (recurring) {
+      data = {
+        source,
+        summary,
+        frequency: this._repeat.value,
+        time: this._rtime.value || "09:00",
+        enabled: true,
+      };
+      if (this._description.value.trim())
+        data.description = this._description.value.trim();
+      if (this._destination.value) data.destination = this._destination.value;
+      if (this._repeat.value === "weekly") {
+        if (this._weekdaySel.size === 0)
+          return this._setNote("Pick at least one weekday.", true);
+        data.weekdays = [...this._weekdaySel];
+      }
+      if (this._repeat.value === "monthly")
+        data.day_of_month = Number(this._dom.value) || 1;
+      service = "add_recurring_task";
+    } else {
+      data = { source, summary };
+      if (this._description.value.trim())
+        data.description = this._description.value.trim();
+      if (source !== "github" && this._due.value) data.due_date = this._due.value;
+      if (this._destination.value) data.destination = this._destination.value;
+      service = "create_task";
+    }
 
     this._busyCreate = true;
     this._createBtn.disabled = true;
-    this._setNote("Creating…");
+    this._setNote(recurring ? "Scheduling…" : "Creating…");
     try {
-      await this._hass.callService("unified_todo", "create_task", data);
+      await this._hass.callService("unified_todo", service, data);
       this._summary.value = "";
       this._description.value = "";
       this._due.value = "";
-      this._setNote("Created ✓");
+      this._setNote(recurring ? "Scheduled ✓" : "Created ✓");
     } catch (err) {
-      this._setNote("Create failed: " + this._errMsg(err), true);
+      this._setNote(
+        (recurring ? "Schedule" : "Create") + " failed: " + this._errMsg(err),
+        true
+      );
     } finally {
       this._busyCreate = false;
       this._createBtn.disabled = false;

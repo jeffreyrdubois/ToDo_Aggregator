@@ -1,0 +1,14 @@
+{
+  "domain": "unified_todo",
+  "name": "Unified To-Do Aggregator",
+  "version": "1.0.0",
+  "documentation": "https://github.com/jeffreyrdubois/hassio",
+  "issue_tracker": "https://github.com/jeffreyrdubois/hassio/issues",
+  "codeowners": ["@jeffreyrdubois"],
+  "config_flow": true,
+  "single_config_entry": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements": [],
+  "dependencies": []
+}

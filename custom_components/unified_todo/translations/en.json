@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Unified To-Do Aggregator",
+        "description": "Add credentials for the sources you want to aggregate. Leave a source blank to skip it — at least one is required. See the documentation for how to obtain each token.",
+        "data": {
+          "github_token": "GitHub personal access token",
+          "github_repo_filter": "GitHub repo filter (optional regex, e.g. sr2)",
+          "clickup_token": "ClickUp API token",
+          "clickup_team_id": "ClickUp team / workspace ID",
+          "clickup_assigned_only": "Only my assigned ClickUp tasks",
+          "google_client_id": "Google OAuth client ID",
+          "google_client_secret": "Google OAuth client secret",
+          "google_refresh_token": "Google OAuth refresh token",
+          "scan_interval_minutes": "Refresh interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "no_sources": "Configure at least one source.",
+      "cannot_connect": "Could not connect to the source. Check your network and try again.",
+      "github_auth": "GitHub rejected the token. Check it has the repo scope.",
+      "clickup_auth": "ClickUp rejected the token or team ID.",
+      "clickup_team_required": "A ClickUp team / workspace ID is required when a ClickUp token is set.",
+      "google_incomplete": "Google Tasks needs client ID, client secret and refresh token.",
+      "google_auth": "Google rejected the client credentials or refresh token."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one Unified To-Do Aggregator can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Unified To-Do Aggregator settings",
+        "description": "Update credentials, filters or the refresh interval. Tokens left blank will be removed.",
+        "data": {
+          "github_token": "GitHub personal access token",
+          "github_repo_filter": "GitHub repo filter (optional regex, e.g. sr2)",
+          "clickup_token": "ClickUp API token",
+          "clickup_team_id": "ClickUp team / workspace ID",
+          "clickup_assigned_only": "Only my assigned ClickUp tasks",
+          "google_client_id": "Google OAuth client ID",
+          "google_client_secret": "Google OAuth client secret",
+          "google_refresh_token": "Google OAuth refresh token",
+          "scan_interval_minutes": "Refresh interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "no_sources": "Configure at least one source.",
+      "cannot_connect": "Could not connect to the source. Check your network and try again.",
+      "github_auth": "GitHub rejected the token. Check it has the repo scope.",
+      "clickup_auth": "ClickUp rejected the token or team ID.",
+      "clickup_team_required": "A ClickUp team / workspace ID is required when a ClickUp token is set.",
+      "google_incomplete": "Google Tasks needs client ID, client secret and refresh token.",
+      "google_auth": "Google rejected the client credentials or refresh token."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "unified_todos": {
+        "name": "Unified To-Dos"
+      }
+    }
+  }
+}

@@ -188,7 +188,35 @@ card and search for **"Unified To-Do Card"**, or in YAML:
 type: custom:unified-todo-card
 entity: sensor.unified_todos   # optional (default)
 title: My To-Dos               # optional
+list: Home Tasks               # optional — show only this list/repo
 ```
+
+### Showing a single list
+
+By default the card aggregates every task across all your services and lists.
+Use the `list:` option to scope a card to just **one** list — for example a
+single Google Tasks list when you keep several:
+
+```yaml
+type: custom:unified-todo-card
+title: Home Tasks
+list: Home Tasks               # the exact list name (case-insensitive)
+```
+
+`list:` matches each task's `list_name` — a **Google Tasks list** title, a
+**ClickUp list** name, or a **GitHub `owner/repo`**. Pass several names as a
+YAML list to combine a few lists into one card:
+
+```yaml
+type: custom:unified-todo-card
+title: Personal
+list:
+  - Home Tasks
+  - Errands
+```
+
+Completing and creating tasks keep working exactly as on the unaggregated card.
+When no `list:` is set, each task shows a 🗂 chip with the list/repo it lives in.
 
 It gives you, in one card:
 

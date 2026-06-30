@@ -13,7 +13,12 @@ integration never has to care where a task came from::
         "assignee": str | None,
         "description": str | None,
         "updated_at": str | None,   # ISO 8601
+        "list_name": str | None,    # the repo / list the task lives in
     }
+
+The per-source completion bookkeeping fields (``repo`` for GitHub, ``list_id``
+for Google) are also carried through; ``list_name`` is the human-friendly
+container label used for display and the card's ``list:`` filter.
 
 The integration is strictly read-only: nothing here ever writes back to a
 source system.
@@ -171,6 +176,7 @@ def _repo_from_html_url(html_url: str | None) -> str | None:
 def _normalise_github(issue: dict[str, Any]) -> dict[str, Any]:
     milestone = issue.get("milestone") or {}
     assignee = (issue.get("assignee") or {}).get("login")
+    repo = _github_repo(issue)
     return {
         "title": issue.get("title"),
         "source": SOURCE_GITHUB,
@@ -182,7 +188,9 @@ def _normalise_github(issue: dict[str, Any]) -> dict[str, Any]:
         "description": _truncate(issue.get("body")),
         "updated_at": issue.get("updated_at"),
         # Carried so a completion (issue close) knows which repo to target.
-        "repo": _github_repo(issue),
+        "repo": repo,
+        # The repo doubles as this task's container label for display/filtering.
+        "list_name": repo,
     }
 
 
@@ -375,6 +383,7 @@ def _normalise_clickup(task: dict[str, Any]) -> dict[str, Any]:
     if assignees:
         first = assignees[0]
         assignee = first.get("username") or first.get("email")
+    lst = task.get("list") or {}
     return {
         "title": task.get("name"),
         "source": SOURCE_CLICKUP,
@@ -385,6 +394,7 @@ def _normalise_clickup(task: dict[str, Any]) -> dict[str, Any]:
         "assignee": assignee,
         "description": _truncate(task.get("text_content") or task.get("description")),
         "updated_at": _epoch_ms_to_iso(task.get("date_updated")),
+        "list_name": lst.get("name"),
     }
 
 
@@ -654,7 +664,9 @@ async def async_clickup_list_lists(
 
 
 def _normalise_google(
-    task: dict[str, Any], list_id: str | None = None
+    task: dict[str, Any],
+    list_id: str | None = None,
+    list_name: str | None = None,
 ) -> dict[str, Any]:
     # Google Tasks ``due`` is an RFC 3339 timestamp; only the date is meaningful.
     due = task.get("due")
@@ -670,6 +682,7 @@ def _normalise_google(
         "updated_at": task.get("updated"),
         # Carried so a completion knows which task list the task lives in.
         "list_id": list_id,
+        "list_name": list_name,
     }
 
 
@@ -737,6 +750,7 @@ async def async_fetch_google(
         list_id = task_list.get("id")
         if not list_id:
             continue
+        list_name = task_list.get("title")
         page_token: str | None = None
         while True:
             params = {
@@ -769,7 +783,7 @@ async def async_fetch_google(
                 # Skip completed and deleted tasks defensively.
                 if task.get("status") == "completed" or task.get("deleted"):
                     continue
-                tasks.append(_normalise_google(task, list_id))
+                tasks.append(_normalise_google(task, list_id, list_name))
 
             page_token = data.get("nextPageToken")
             if not page_token:

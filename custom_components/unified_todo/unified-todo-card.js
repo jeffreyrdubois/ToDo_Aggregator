@@ -13,6 +13,11 @@
  *   type: custom:unified-todo-card
  *   entity: sensor.unified_todos   # optional, this is the default
  *   title: My To-Dos               # optional
+ *   list: Home Tasks               # optional; show only tasks from this list /
+ *                                  # repo. Accepts a single name or a YAML list
+ *                                  # of names, matched case-insensitively
+ *                                  # against each task's list_name (a Google
+ *                                  # Tasks list, ClickUp list, or GitHub repo).
  */
 
 const SOURCE_LABELS = {
@@ -44,6 +49,16 @@ class UnifiedTodoCard extends HTMLElement {
       { entity: "sensor.unified_todos", title: "Unified To-Dos" },
       config || {}
     );
+    // Optional `list:` filter — a single name or an array of names. Tasks are
+    // kept when their `list_name` matches one of these (case-insensitive).
+    const raw = this._config.list;
+    const names = (raw == null ? [] : Array.isArray(raw) ? raw : [raw])
+      .map((n) => String(n).trim())
+      .filter(Boolean);
+    this._listFilter = names.length
+      ? new Set(names.map((n) => n.toLowerCase()))
+      : null;
+    this._listLabels = names; // original casing, for display
     this._built = false;
     if (this.isConnected) this._build();
   }
@@ -71,7 +86,13 @@ class UnifiedTodoCard extends HTMLElement {
   _tasks() {
     const s = this._stateObj();
     const tasks = s && s.attributes ? s.attributes.tasks : null;
-    return Array.isArray(tasks) ? tasks : [];
+    let list = Array.isArray(tasks) ? tasks : [];
+    if (this._listFilter) {
+      list = list.filter((t) =>
+        this._listFilter.has(String(t.list_name || "").trim().toLowerCase())
+      );
+    }
+    return list;
   }
 
   _sources() {
@@ -374,7 +395,10 @@ class UnifiedTodoCard extends HTMLElement {
       return;
     }
     if (!tasks.length) {
-      this._taskList.appendChild(this._empty("🎉 Nothing open — all caught up!"));
+      const msg = this._listFilter
+        ? `Nothing open in ${this._listLabels.join(", ")}.`
+        : "🎉 Nothing open — all caught up!";
+      this._taskList.appendChild(this._empty(msg));
       return;
     }
 
@@ -422,6 +446,11 @@ class UnifiedTodoCard extends HTMLElement {
     const meta = document.createElement("div");
     meta.className = "utc-meta";
     meta.appendChild(this._chip(SOURCE_LABELS[task.source] || task.source, "src"));
+    // Show which list/repo the task lives in, unless we're already filtered
+    // down to a specific list (where the chip would be redundant).
+    if (!this._listFilter && task.list_name) {
+      meta.appendChild(this._chip("🗂 " + task.list_name));
+    }
     if (task.due_date) meta.appendChild(this._chip("📅 " + task.due_date));
     if (task.priority) {
       const c = this._chip("⚡ " + task.priority);

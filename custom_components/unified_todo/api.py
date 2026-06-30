@@ -395,6 +395,8 @@ def _normalise_clickup(task: dict[str, Any]) -> dict[str, Any]:
         "description": _truncate(task.get("text_content") or task.get("description")),
         "updated_at": _epoch_ms_to_iso(task.get("date_updated")),
         "list_name": lst.get("name"),
+        # Carried so the card can target new tasks at this task's own list.
+        "list_id": str(lst.get("id")) if lst.get("id") else None,
     }
 
 

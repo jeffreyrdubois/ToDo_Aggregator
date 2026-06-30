@@ -59,6 +59,9 @@ class UnifiedTodoCard extends HTMLElement {
       ? new Set(names.map((n) => n.toLowerCase()))
       : null;
     this._listLabels = names; // original casing, for display
+    // When filtered to exactly one list, new tasks are locked to that list.
+    this._lockedDest = null; // { source, id, name } once resolved
+    this._lockProbing = false;
     this._built = false;
     if (this.isConnected) this._build();
   }
@@ -68,6 +71,7 @@ class UnifiedTodoCard extends HTMLElement {
     if (!this._built) this._build();
     this._renderTasks();
     this._syncProviders();
+    this._ensureLockResolved();
     this._ensureRulesLoaded();
   }
 
@@ -104,6 +108,106 @@ class UnifiedTodoCard extends HTMLElement {
     return [...new Set(this._tasks().map((t) => t.source))];
   }
 
+  // ----- single-list create lock -------------------------------------------
+
+  // Only a single configured list locks the create form to that destination.
+  _isSingleListMode() {
+    return !!this._listFilter && this._listFilter.size === 1;
+  }
+
+  _filterTarget() {
+    // The one configured list name, lower-cased for comparison.
+    return this._listFilter ? [...this._listFilter][0] : "";
+  }
+
+  // A task in the filtered list already carries its own create destination:
+  // GitHub -> owner/repo, Google/ClickUp -> the list id.
+  _lockFromTask(task) {
+    if (
+      String(task.list_name || "").trim().toLowerCase() !== this._filterTarget()
+    )
+      return null;
+    let id = null;
+    if (task.source === "github") id = task.repo;
+    else if (task.source === "google_tasks" || task.source === "clickup")
+      id = task.list_id;
+    if (!id) return null;
+    return { source: task.source, id: String(id), name: task.list_name };
+  }
+
+  _ensureLockResolved() {
+    if (!this._isSingleListMode()) {
+      this._lockedDest = null;
+      return;
+    }
+    if (this._lockedDest) return;
+    // Cheapest path: an open task in the list already names its destination.
+    for (const task of this._tasks()) {
+      const locked = this._lockFromTask(task);
+      if (locked) {
+        this._applyLock(locked);
+        return;
+      }
+    }
+    // The list may be empty right now — fall back to looking it up by name.
+    if (this._lockProbing) return;
+    this._lockProbing = true;
+    this._probeLockDestination().then((locked) => {
+      // Allow a retry on the next update if the lookup came up empty
+      // (e.g. a destination service was momentarily unreachable).
+      this._lockProbing = false;
+      if (locked) this._applyLock(locked);
+    });
+  }
+
+  _applyLock(locked) {
+    this._lockedDest = locked;
+    // Keep the (hidden) provider in sync so dependent UI (e.g. the GitHub
+    // due-date hiding) stays correct.
+    if (this._provider && [...this._provider.options].some((o) => o.value === locked.source))
+      this._provider.value = locked.source;
+    this._updateVisibility();
+  }
+
+  async _probeLockDestination() {
+    const target = this._filterTarget();
+    for (const source of this._sources()) {
+      let data = this._destCache[source];
+      if (!data) {
+        try {
+          data = await this._callList(source);
+          this._destCache[source] = data;
+        } catch (err) {
+          continue;
+        }
+      }
+      const match = (data.destinations || []).find((d) =>
+        this._destMatches(d.name, target)
+      );
+      if (match)
+        return { source, id: String(match.id), name: match.name };
+    }
+    return null;
+  }
+
+  _destMatches(name, target) {
+    const n = String(name || "").trim().toLowerCase();
+    if (n === target) return true;
+    // ClickUp destinations read "Space / Folder / List" — match the leaf.
+    return n.split("/").pop().trim() === target;
+  }
+
+  // Where a create should go: the locked list when active, else the pickers.
+  _createTarget() {
+    if (this._lockedDest && this._editingRuleId === null) {
+      return { source: this._lockedDest.source, destination: this._lockedDest.id };
+    }
+    return {
+      source: this._provider ? this._provider.value : "",
+      destination: this._destination ? this._destination.value : "",
+    };
+  }
+
   // ----- build (once) -------------------------------------------------------
 
   _build() {
@@ -132,7 +236,16 @@ class UnifiedTodoCard extends HTMLElement {
   }
 
   _updateVisibility() {
-    const src = this._provider ? this._provider.value : "";
+    const editing = this._editingRuleId !== null;
+    // Lock new tasks to the filtered list: hide the Service/Destination
+    // pickers and show where tasks will go. Editing a recurring rule
+    // temporarily reveals the pickers so the rule's own target is editable.
+    const locked = !!this._lockedDest && !editing;
+    const src = locked
+      ? this._lockedDest.source
+      : this._provider
+        ? this._provider.value
+        : "";
     const repeat = this._repeat ? this._repeat.value : "";
     const recurring = repeat !== "";
     // Absolute due-date only applies to one-off, non-GitHub tasks.
@@ -146,7 +259,15 @@ class UnifiedTodoCard extends HTMLElement {
     if (this._domField) {
       this._domField.style.display = repeat === "monthly" ? "" : "none";
     }
-    const editing = this._editingRuleId !== null;
+    if (this._serviceField)
+      this._serviceField.style.display = locked ? "none" : "";
+    if (this._destField) this._destField.style.display = locked ? "none" : "";
+    if (this._lockNote) {
+      this._lockNote.style.display = locked ? "" : "none";
+      this._lockNote.textContent = locked
+        ? `New tasks go to “${this._lockedDest.name}”.`
+        : "";
+    }
     if (this._createBtn) {
       this._createBtn.textContent = editing
         ? "Save"
@@ -256,14 +377,23 @@ class UnifiedTodoCard extends HTMLElement {
     const fields = document.createElement("div");
     fields.className = "utc-fields";
 
+    // When locked to a single list, this replaces the Service/Destination
+    // pickers with a static line naming where new tasks will go.
+    this._lockNote = document.createElement("div");
+    this._lockNote.className = "utc-note";
+    this._lockNote.style.display = "none";
+    fields.appendChild(this._lockNote);
+
     // Provider
     this._provider = document.createElement("select");
     this._provider.addEventListener("change", () => this._onProviderChange());
-    fields.appendChild(this._field("Service", this._provider));
+    this._serviceField = this._field("Service", this._provider);
+    fields.appendChild(this._serviceField);
 
     // Destination
     this._destination = document.createElement("select");
-    fields.appendChild(this._field("Destination", this._destination));
+    this._destField = this._field("Destination", this._destination);
+    fields.appendChild(this._destField);
 
     // Summary
     this._summary = document.createElement("input");
@@ -573,7 +703,7 @@ class UnifiedTodoCard extends HTMLElement {
 
   async _onCreate() {
     if (this._busyCreate) return;
-    const source = this._provider.value;
+    const { source, destination } = this._createTarget();
     const summary = this._summary.value.trim();
     if (!source) return this._setNote("Pick a service first.", true);
     if (!summary) return this._setNote("A title is required.", true);
@@ -595,7 +725,7 @@ class UnifiedTodoCard extends HTMLElement {
       };
       if (this._description.value.trim())
         data.description = this._description.value.trim();
-      if (this._destination.value) data.destination = this._destination.value;
+      if (destination) data.destination = destination;
       if (this._repeat.value === "weekly") {
         if (this._weekdaySel.size === 0)
           return this._setNote("Pick at least one weekday.", true);
@@ -614,7 +744,7 @@ class UnifiedTodoCard extends HTMLElement {
       if (this._description.value.trim())
         data.description = this._description.value.trim();
       if (source !== "github" && this._due.value) data.due_date = this._due.value;
-      if (this._destination.value) data.destination = this._destination.value;
+      if (destination) data.destination = destination;
       service = "create_task";
     }
 

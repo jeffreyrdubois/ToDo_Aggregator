@@ -215,8 +215,17 @@ list:
   - Errands
 ```
 
-Completing and creating tasks keep working exactly as on the unaggregated card.
 When no `list:` is set, each task shows a 🗂 chip with the list/repo it lives in.
+
+#### New tasks go to the filtered list
+
+When a card is scoped to a **single** list, the **＋ New task** form drops the
+Service / Destination pickers and creates straight into that list — so a "Home
+Tasks" card only ever adds to Home Tasks. This works even when the list is
+currently empty. (Scoping to several lists at once leaves the normal pickers in
+place, since there's no single destination to choose.)
+
+Completing tasks keeps working exactly as on the unaggregated card.
 
 It gives you, in one card:
 
